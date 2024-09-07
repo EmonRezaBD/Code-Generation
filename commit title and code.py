@@ -59,7 +59,7 @@ def main():
         commit_urls = row['commit_url']
 
         # Split the commit_url field to handle multiple URLs, and select the first one
-        first_commit_url = commit_urls.split()[0]  # Split on spaces and take the first URL
+        first_commit_url = commit_urls.split(',')[0]  # Split on spaces and take the first URL
         
         print(f"Processing commit: {first_commit_url}")
         

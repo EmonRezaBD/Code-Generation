@@ -1,0 +1,8 @@
+Commit title: parallel insert support for ReplicatedMergeTree
+Commit body: class StorageReplicatedMergeTree : public ext::shared_ptr_helper<StorageReplicat
+std::string getTableName() const override { return table_name; }
+std::string getDatabaseName() const override { return database_name; }
+
+bool supportsParallelInsert() const override { return true; }
+bool supportsReplication() const override { return true; }
+bool supportsDeduplication() const override { return true; }

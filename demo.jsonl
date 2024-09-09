@@ -6,3 +6,4 @@ std::string getDatabaseName() const override { return database_name; }
 bool supportsParallelInsert() const override { return true; }
 bool supportsReplication() const override { return true; }
 bool supportsDeduplication() const override { return true; }
+

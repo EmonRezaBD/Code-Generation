@@ -27,23 +27,48 @@ def scrape_github_commit(url):
     # Find all the table rows that contain the actual code
     diff_elements = soup.find_all("td", class_="blob-code")
 
-    # Extract and join all the code lines
-    commit_body_lines = [line.get_text(strip=True) for line in diff_elements]
-    commit_body_text = "\n".join(commit_body_lines)
+    # Extract and categorize the code changes
+    before_version = []  # Version A: All lines except +/-
+    after_version = []   # Version B: All lines with +
+    code_diff = []       # Version C: Only lines with + or -
 
-    # Return a dictionary with the commit title and body (full C++ code)
+    for line in diff_elements:
+        code_line = line.get_text(strip=True)
+        
+        # Version A: All lines without + or - (context and unmodified lines)
+        if not code_line.startswith("+") and not code_line.startswith("-"):
+            before_version.append(code_line)
+        
+        # Version B: All lines with + (added lines only)
+        if code_line.startswith("+"):
+            after_version.append(code_line)
+        
+        # Version C: Only lines with + or - (added and removed lines)
+        if code_line.startswith("+") or code_line.startswith("-"):
+            code_diff.append(code_line)
+
+    # Join the lists into strings
+    before_text = "\n".join(before_version)   # Before version (no + or -)
+    after_text = "\n".join(after_version)     # After version (only + lines)
+    diff_text = "\n".join(code_diff)          # Difference (only + and - lines)
+
+    # Return a dictionary with the commit title and the categorized code blocks
     return {
         "commit_title": commit_title,
-        "commit_body": commit_body_text
+        "before_version": before_text,  # Version A
+        "after_version": after_text,    # Version B
+        "code_diff": diff_text          # Version C
     }
 
-# Function to write commit title and body into a JSON Lines (.jsonl) file
+# Function to write commit data into a JSON Lines (.jsonl) file
 def write_to_jsonl(file_name, commit_data):
     with open(file_name, 'a', encoding='utf-8') as f:  # 'a' for append
         # Format the commit as per your required output format
         formatted_data = {
             "Commit title": commit_data["commit_title"],
-            "Commit body": commit_data["commit_body"]
+            "Before version": commit_data["before_version"],  # All lines except + and -
+            "After version": commit_data["after_version"],    # Only + lines
+            "Difference": commit_data["code_diff"]            # Only + and - lines
         }
         json_line = json.dumps(formatted_data, ensure_ascii=False)
         f.write(json_line + '\n')
@@ -51,7 +76,7 @@ def write_to_jsonl(file_name, commit_data):
 # Main function to run the scraper for each commit URL from the CSV
 def main():
     # Read the CSV file and specify only the 'commit_url' column
-    csv_file = 'F:\\LLMBenchmark\\Code-Generation\\issues.csv'  # Replace with your CSV file name
+    csv_file = 'F:\\LLMBenchmark\\Code-Generation\\C++_data_1func_changed.csv'  # Replace with your CSV file name
     df = pd.read_csv(csv_file, usecols=['commit_url'])  # Read only the commit_url column
 
     # Loop through each row in the CSV
@@ -68,7 +93,7 @@ def main():
         
         if commit_data:
             # Write the commit title and body to a JSONL file
-            jsonl_file = "commit_metadata.jsonl"
+            jsonl_file = "Single.jsonl"
             write_to_jsonl(jsonl_file, commit_data)
             print(f"Commit data has been written to {jsonl_file}")
         else:

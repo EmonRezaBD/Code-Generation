@@ -83,11 +83,11 @@ def write_to_jsonl(file_name, commit_data):
         # Format the commit as per your required output format
         formatted_data = {
             "Commit title": commit_data["commit_title"],
-            "only_addition_codes": commit_data["only_addition_codes"],  
-            "only_deletion_codes": commit_data["only_deletion_codes"],    
-            "codes_without_addition_and_deletion": commit_data["codes_without_addition_and_deletion"],            
-            "before_commit_codebase": commit_data["before_commit_codebase"],        
-            "after_commit_codebase": commit_data["after_commit_codebase"]        
+            "Only_addition_codes": commit_data["only_addition_codes"],  
+            "Only_deletion_codes": commit_data["only_deletion_codes"],    
+            "Codes_without_addition_and_deletion": commit_data["codes_without_addition_and_deletion"],            
+            "Before_commit_codebase": commit_data["before_commit_codebase"],        
+            "After_commit_codebase": commit_data["after_commit_codebase"]        
         }
         json_line = json.dumps(formatted_data, ensure_ascii=False)
         f.write(json_line + '\n')

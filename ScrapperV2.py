@@ -24,40 +24,57 @@ def scrape_github_commit(url):
     commit_title_element = soup.find("div", class_="commit-title")
     commit_title = commit_title_element.get_text(strip=True) if commit_title_element else "No Title Found"
 
-    # Find all the table rows that contain the actual code
-    diff_elements = soup.find_all("td", class_="blob-code")
+    #list for storing parsed code elements
+    minus_version = []   # Codes with -
+    plus_version = []   # Codes with +
+    normal_version = []       # Codes without + and - lines
+    before_commit_list = [] # Codes with - and normal_version
+    after_commit_list = [] # Codes with + and normal_version
+    
 
-    # Extract and categorize the code changes
-    before_version = []  # Version A: All lines except +/-
-    after_version = []   # Version B: All lines with +
-    code_diff = []       # Version C: Only lines with + or -
+    minusCode = soup.find_all("td", class_="blob-code-deletion")
+    plusCode = soup.find_all("td", class_="blob-code-addition")
+    normalCode = soup.find_all("td", class_="blob-code-context")
+    before_commit_code = soup.find_all(["td"], class_=["blob-code-deletion", "blob-code-context"])
+    after_commit_code = soup.find_all(["td"], class_=["blob-code-addition", "blob-code-context"])
 
-    for line in diff_elements:
+
+    for line in minusCode:
         code_line = line.get_text(strip=True)
-        
-        # Version A: All lines without + or - (context and unmodified lines)
-        if not code_line.startswith("+") and not code_line.startswith("-"):
-            before_version.append(code_line)
-        
-        # Version B: All lines with + (added lines only)
-        if code_line.startswith("+"):
-            after_version.append(code_line)
-        
-        # Version C: Only lines with + or - (added and removed lines)
-        if code_line.startswith("+") or code_line.startswith("-"):
-            code_diff.append(code_line)
+        minus_version.append(code_line)
+
+    for line in plusCode:
+        code_line = line.get_text(strip=True)
+        plus_version.append(code_line)
+    
+    for line in normalCode:
+        code_line = line.get_text(strip=True)
+        normal_version.append(code_line)
+    
+    for line in before_commit_code:
+        code_line = line.get_text(strip=True)
+        before_commit_list.append(code_line)
+
+    for line in after_commit_code:
+        code_line = line.get_text(strip=True)
+        after_commit_list.append(code_line)
 
     # Join the lists into strings
-    before_text = "\n".join(before_version)   # Before version (no + or -)
-    after_text = "\n".join(after_version)     # After version (only + lines)
-    diff_text = "\n".join(code_diff)          # Difference (only + and - lines)
+    only_addition_codes = "\n".join(plus_version)   
+    only_deletion_codes = "\n".join(minus_version)   
+    normal_codes = "\n".join(normal_version)   
+    before_commit_codes = "\n".join(before_commit_list)   
+    after_commit_codes = "\n".join(after_commit_list)   
+           
 
     # Return a dictionary with the commit title and the categorized code blocks
     return {
         "commit_title": commit_title,
-        "before_version": before_text,  # Version A
-        "after_version": after_text,    # Version B
-        "code_diff": diff_text          # Version C
+        "only_addition_codes": only_addition_codes, 
+        "only_deletion_codes": only_deletion_codes,
+        "codes_without_addition_and_deletion": normal_codes,   
+        "before_commit_codebase": before_commit_codes,       
+        "after_commit_codebase":after_commit_codes       
     }
 
 # Function to write commit data into a JSON Lines (.jsonl) file
@@ -66,9 +83,11 @@ def write_to_jsonl(file_name, commit_data):
         # Format the commit as per your required output format
         formatted_data = {
             "Commit title": commit_data["commit_title"],
-            "Before version": commit_data["before_version"],  # All lines except + and -
-            "After version": commit_data["after_version"],    # Only + lines
-            "Difference": commit_data["code_diff"]            # Only + and - lines
+            "only_addition_codes": commit_data["only_addition_codes"],  
+            "only_deletion_codes": commit_data["only_deletion_codes"],    
+            "codes_without_addition_and_deletion": commit_data["codes_without_addition_and_deletion"],            
+            "before_commit_codebase": commit_data["before_commit_codebase"],        
+            "after_commit_codebase": commit_data["after_commit_codebase"]        
         }
         json_line = json.dumps(formatted_data, ensure_ascii=False)
         f.write(json_line + '\n')
@@ -93,7 +112,7 @@ def main():
         
         if commit_data:
             # Write the commit title and body to a JSONL file
-            jsonl_file = "Single.jsonl"
+            jsonl_file = "finalDataset.jsonl"
             write_to_jsonl(jsonl_file, commit_data)
             print(f"Commit data has been written to {jsonl_file}")
         else:

@@ -76,11 +76,3 @@ SIngle function change. Function name was mentioned,https://github.com/mapbox/ma
 ,https://github.com/project-asgard/asgard/commit/076f8b296ce85de4ae54ccfea88f8074e42c6ffe,improve perf of combine dims using views,https://github.com/project-asgard/asgard.git/commit/076f8b296ce85de4ae54ccfea88f8074e42c6ffe,https://github.com/project-asgard/asgard.git,076f8b296ce85de4ae54ccfea88f8074e42c6ffe,transformations.cpp
 ,https://github.com/project-asgard/asgard/commit/11a890019fb230ce1c8699ceb2f2dad2fe6609e5,clang-format,https://github.com/project-asgard/asgard.git/commit/11a890019fb230ce1c8699ceb2f2dad2fe6609e5,https://github.com/project-asgard/asgard.git,11a890019fb230ce1c8699ceb2f2dad2fe6609e5,chunk.cpp
 ,https://github.com/jaypipes/sqltoast/commit/9ab9674aa601e4cb99ed9b89a51755702c83936e,default token -> string output for symbols,https://github.com/jaypipes/sqltoast.git/commit/9ab9674aa601e4cb99ed9b89a51755702c83936e,https://github.com/jaypipes/sqltoast.git,9ab9674aa601e4cb99ed9b89a51755702c83936e,token.cc
-,,,,,,
-,,,,,,
-,,,,,,
-,,,,,,
-,,,,,,
-,,,,,,
-,,,,,,
-,Pattern: If the function change name is mentioned above then that is a single function change,,,,,

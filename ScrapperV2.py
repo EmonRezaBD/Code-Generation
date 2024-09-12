@@ -20,62 +20,68 @@ def scrape_github_commit(url):
     # Parse the page content using BeautifulSoup
     soup = BeautifulSoup(response.text, "html.parser")
     
-    # Extract the commit title (the bold part in the title)
-    commit_title_element = soup.find("div", class_="commit-title")
-    commit_title = commit_title_element.get_text(strip=True) if commit_title_element else "No Title Found"
+    #Checking if Single function change
+    find_function_name = soup.find("td", class_="blob-code-hunk")
+    function_name = find_function_name.get_text(strip=True)
 
-    #list for storing parsed code elements
-    minus_version = []   # Codes with -
-    plus_version = []   # Codes with +
-    normal_version = []       # Codes without + and - lines
-    before_commit_list = [] # Codes with - and normal_version
-    after_commit_list = [] # Codes with + and normal_version
-    
+    if '(' in function_name and ')' in function_name: #Checking function signature 
 
-    minusCode = soup.find_all("td", class_="blob-code-deletion")
-    plusCode = soup.find_all("td", class_="blob-code-addition")
-    normalCode = soup.find_all("td", class_="blob-code-context")
-    before_commit_code = soup.find_all(["td"], class_=["blob-code-deletion", "blob-code-context"])
-    after_commit_code = soup.find_all(["td"], class_=["blob-code-addition", "blob-code-context"])
+        # Extract the commit title (the bold part in the title)
+        commit_title_element = soup.find("div", class_="commit-title")
+        commit_title = commit_title_element.get_text(strip=True) if commit_title_element else "No Title Found"
+
+        #list for storing parsed code elements
+        minus_version = []   # Codes with -
+        plus_version = []   # Codes with +
+        normal_version = []       # Codes without + and - lines
+        before_commit_list = [] # Codes with - and normal_version
+        after_commit_list = [] # Codes with + and normal_version
+        
+
+        minusCode = soup.find_all("td", class_="blob-code-deletion")
+        plusCode = soup.find_all("td", class_="blob-code-addition")
+        normalCode = soup.find_all("td", class_="blob-code-context")
+        before_commit_code = soup.find_all(["td"], class_=["blob-code-deletion", "blob-code-context"])
+        after_commit_code = soup.find_all(["td"], class_=["blob-code-addition", "blob-code-context"])
 
 
-    for line in minusCode:
-        code_line = line.get_text(strip=True)
-        minus_version.append(code_line)
+        for line in minusCode:
+            code_line = line.get_text(strip=True)
+            minus_version.append(code_line)
 
-    for line in plusCode:
-        code_line = line.get_text(strip=True)
-        plus_version.append(code_line)
-    
-    for line in normalCode:
-        code_line = line.get_text(strip=True)
-        normal_version.append(code_line)
-    
-    for line in before_commit_code:
-        code_line = line.get_text(strip=True)
-        before_commit_list.append(code_line)
+        for line in plusCode:
+            code_line = line.get_text(strip=True)
+            plus_version.append(code_line)
+        
+        for line in normalCode:
+            code_line = line.get_text(strip=True)
+            normal_version.append(code_line)
+        
+        for line in before_commit_code:
+            code_line = line.get_text(strip=True)
+            before_commit_list.append(code_line)
 
-    for line in after_commit_code:
-        code_line = line.get_text(strip=True)
-        after_commit_list.append(code_line)
+        for line in after_commit_code:
+            code_line = line.get_text(strip=True)
+            after_commit_list.append(code_line)
 
-    # Join the lists into strings
-    only_addition_codes = "\n".join(plus_version)   
-    only_deletion_codes = "\n".join(minus_version)   
-    normal_codes = "\n".join(normal_version)   
-    before_commit_codes = "\n".join(before_commit_list)   
-    after_commit_codes = "\n".join(after_commit_list)   
-           
+        # Join the lists into strings
+        only_addition_codes = "\n".join(plus_version)   
+        only_deletion_codes = "\n".join(minus_version)   
+        normal_codes = "\n".join(normal_version)   
+        before_commit_codes = "\n".join(before_commit_list)   
+        after_commit_codes = "\n".join(after_commit_list)   
+            
 
-    # Return a dictionary with the commit title and the categorized code blocks
-    return {
-        "commit_title": commit_title,
-        "only_addition_codes": only_addition_codes, 
-        "only_deletion_codes": only_deletion_codes,
-        "codes_without_addition_and_deletion": normal_codes,   
-        "before_commit_codebase": before_commit_codes,       
-        "after_commit_codebase":after_commit_codes       
-    }
+        # Return a dictionary with the commit title and the categorized code blocks
+        return {
+            "commit_title": commit_title,
+            "only_addition_codes": only_addition_codes, 
+            "only_deletion_codes": only_deletion_codes,
+            "codes_without_addition_and_deletion": normal_codes,   
+            "before_commit_codebase": before_commit_codes,       
+            "after_commit_codebase":after_commit_codes       
+        }
 
 # Function to write commit data into a JSON Lines (.jsonl) file
 def write_to_jsonl(file_name, commit_data):
@@ -95,7 +101,7 @@ def write_to_jsonl(file_name, commit_data):
 # Main function to run the scraper for each commit URL from the CSV
 def main():
     # Read the CSV file and specify only the 'commit_url' column
-    csv_file = 'F:\\LLMBenchmark\\Code-Generation\\C++_data_1func_changed.csv'  # Replace with your CSV file name
+    csv_file = 'F:\\LLMBenchmark\\Code-Generation\\Data_1func_changed.csv'  # Replace with your CSV file name
     df = pd.read_csv(csv_file, usecols=['commit_url'])  # Read only the commit_url column
 
     # Loop through each row in the CSV
@@ -112,7 +118,7 @@ def main():
         
         if commit_data:
             # Write the commit title and body to a JSONL file
-            jsonl_file = "finalDataset.jsonl"
+            jsonl_file = "singleFuncDataset.jsonl"
             write_to_jsonl(jsonl_file, commit_data)
             print(f"Commit data has been written to {jsonl_file}")
         else:

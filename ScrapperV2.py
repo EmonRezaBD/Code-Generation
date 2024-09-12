@@ -76,6 +76,7 @@ def scrape_github_commit(url):
         # Return a dictionary with the commit title and the categorized code blocks
         return {
             "commit_title": commit_title,
+            "commit_url": url,
             "only_addition_codes": only_addition_codes, 
             "only_deletion_codes": only_deletion_codes,
             "codes_without_addition_and_deletion": normal_codes,   
@@ -89,6 +90,7 @@ def write_to_jsonl(file_name, commit_data):
         # Format the commit as per your required output format
         formatted_data = {
             "Commit title": commit_data["commit_title"],
+            "Commit url": commit_data["commit_url"],
             "Only_addition_codes": commit_data["only_addition_codes"],  
             "Only_deletion_codes": commit_data["only_deletion_codes"],    
             "Codes_without_addition_and_deletion": commit_data["codes_without_addition_and_deletion"],            
@@ -101,7 +103,7 @@ def write_to_jsonl(file_name, commit_data):
 # Main function to run the scraper for each commit URL from the CSV
 def main():
     # Read the CSV file and specify only the 'commit_url' column
-    csv_file = 'F:\\LLMBenchmark\\Code-Generation\\Data_1func_changed.csv'  # Replace with your CSV file name
+    csv_file = 'E:\\Code-Generation\\Data_1func_changed.csv'  # Replace with your CSV file name
     df = pd.read_csv(csv_file, usecols=['commit_url'])  # Read only the commit_url column
 
     # Loop through each row in the CSV
@@ -113,12 +115,11 @@ def main():
         
         print(f"Processing commit: {first_commit_url}")
         
-        # Scrape the commit title and body (full code) from the GitHub commit page
         commit_data = scrape_github_commit(first_commit_url)
         
         if commit_data:
             # Write the commit title and body to a JSONL file
-            jsonl_file = "singleFuncDataset.jsonl"
+            jsonl_file = "DatasetWithCommitURL.jsonl"
             write_to_jsonl(jsonl_file, commit_data)
             print(f"Commit data has been written to {jsonl_file}")
         else:

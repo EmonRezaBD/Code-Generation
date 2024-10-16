@@ -1,0 +1,279 @@
+1. The code uses the getopt function to parse command-line options. 
+
+2. Setup and Environment Configuration
+doc_path, setup_shm, setup_signal_handlers, set_up_environment, find_binary, 
+detect_file_args
+
+3. run_target():  runs the target program 
+
+4. If the dry run is successful, the code calls the analyze() function, which performs further analysis using the given arguments
+
+5. static u32 run_target(char** argv, u8* mem, u32 len, u8 first_run)
+argv: The command-line arguments to execute the target program.
+mem: A pointer to the memory buffer containing the input data for the program.
+len: The length of the input data.
+first_run: A flag indicating whether this is the first execution of the target program
+
+6.static struct itimerval it;
+int status = 0;
+s32 prog_in_fd;
+u32 cksum;
+it: A static structure used for setting a timer to control the program's execution timeout.
+status: Stores the status code from the child process after it terminates.
+prog_in_fd: A file descriptor for the input file that the program will read from.
+cksum: The checksum of the execution trace, used for identifying unique program behaviors.
+
+7.static u8* trace_bits;                /* SHM with instrumentation bitmap   */
+  memset(trace_bits, 0, MAP_SIZE);
+
+8. MEM_BARRIER(): Acts as a memory barrier to ensure proper ordering of memory operations.
+
+9.prog_in_fd = write_to_file(prog_in, mem, len);
+write_to_file: Writes the input data to a file specified by prog_in, which is used as the program's input source.
+
+10.child_pid = fork();
+
+if (child_pid < 0) PFATAL("fork() failed");
+
+if (!child_pid) {
+  ...
+}
+fork(): Creates a new child process. If the process creation fails (child_pid < 0), it terminates with an error.
+If in the child process (child_pid == 0), it performs the following setup:
+
+11.if (dup2(use_stdin ? prog_in_fd : dev_null_fd, 0) < 0 ||
+    dup2(dev_null_fd, 1) < 0 ||
+    dup2(dev_null_fd, 2) < 0) {
+
+  *(u32*)trace_bits = EXEC_FAIL_SIG;
+  PFATAL("dup2() failed");
+
+}
+dup2: Redirects standard input (stdin), standard output (stdout), and standard error (stderr) to either the input file or /dev/null, based on use_stdin.
+If redirection fails, it sets an error signature (EXEC_FAIL_SIG) in trace_bits and exits with an error.
+
+12.if (mem_limit) {
+  r.rlim_max = r.rlim_cur = ((rlim_t)mem_limit) << 20;
+#ifdef RLIMIT_AS
+  setrlimit(RLIMIT_AS, &r); /* Ignore errors */
+#else
+  setrlimit(RLIMIT_DATA, &r); /* Ignore errors */
+#endif
+}
+r.rlim_max = r.rlim_cur = 0;
+setrlimit(RLIMIT_CORE, &r); /* Ignore errors */
+setrlimit: Sets resource limits for the child process. The memory limit is set if specified, and core dumps are disabled.
+
+13.execv(target_path, argv);
+*(u32*)trace_bits = EXEC_FAIL_SIG;
+exit(0);
+execv: Replaces the current process image with a new process image specified by target_path and argv.
+If execv fails, it indicates the failure in trace_bits and exits.
+
+14.if (waitpid(child_pid, &status, 0) <= 0) FATAL("waitpid() failed");
+waitpid: Waits for the child process to terminate. If it fails, the program exits with an error.
+
+15.  classify_counts(trace_bits); //Processes the collected trace data.
+//Need to explore this func
+
+16.   cksum = hash32(trace_bits, MAP_SIZE, HASH_CONST); //Computes a checksum of the execution trace using the hash32 function.
+////Need to explore this func
+
+17. static void classify_counts(u8* mem)
+mem: A pointer to a memory region (trace_bits) representing execution counts for different edges in the program's control-flow graph (CFG). The trace_bits array is used to track how many times each program location (edge) was executed during a run.
+
+u32 i = MAP_SIZE;
+i: A counter used to iterate over the memory region.
+MAP_SIZE: The size of the trace_bits array, representing the number of edges or program locations tracked. It defines the length of the memory region being processed.
+
+if (edges_only) {
+
+  while (i--) {
+    if (*mem) *mem = 1;
+    mem++;
+  }
+
+}
+When edges_only mode is enabled, the goal is to track only whether an edge was executed at least once, without considering how many times.
+The loop iterates over all entries in the memory region (MAP_SIZE iterations).
+If the current byte (*mem) is non-zero (indicating that the edge was executed at least once), it sets the value to 1. This effectively normalizes all non-zero values to 1, representing that the edge was hit.
+It then increments the memory pointer (mem++) to move to the next entry.
+
+else { //Non edge mode
+
+  while (i--) {
+    *mem = count_class_lookup[*mem];
+    mem++;
+  }
+
+}
+
+In this mode, the function maps each value in mem to a "count class" using a lookup table (count_class_lookup).
+count_class_lookup is a predefined array that groups execution counts into categories or "buckets." This helps reduce the precision of the count while still capturing the relative frequency of edge executions.
+For example, instead of tracking exact execution counts (like 3, 7, 25), it might group them into buckets such as "1-3", "4-10", "11-50", etc., depending on how the lookup table is defined.
+The loop iterates over the entire mem array and updates each value based on its corresponding count class.
+mem++ increments the pointer to move to the next entry in the array.
+
+The modified trace_bits array is then used for further analysis, such as calculating checksums to detect different execution behaviors or identifying hot spots in the code.
+
+18. count_class_lookup[*mem]; //need to read this
+
+static u8 count_class_lookup[256] = {
+
+  [0]           = 0, 
+  [1]           = 1,
+  [2]           = 2,
+  [3]           = 4,
+  [4 ... 7]     = 8,
+  [8 ... 15]    = 16,
+  [16 ... 31]   = 32,
+  [32 ... 127]  = 64,
+  [128 ... 255] = 128
+
+};
+[3] = 4: If the original count is 3, it is mapped to 4. This starts the process of grouping multiple values into a single bucket.
+[4 ... 7] = 8: Values from 4 to 7 are grouped and represented by 8.
+[8 ... 15] = 16: Values from 8 to 15 are grouped and represented by 16.
+
+When edges_only mode is not enabled, the count_class_lookup table is used to map each raw execution count in the trace_bits array to its corresponding classification.
+
+For example, if an edge was executed 5 times, the corresponding value in trace_bits would be updated to 8, according to the lookup table.
+
+This approach is useful for fuzzing, where the goal is to understand which parts of the program are "hot" without needing exact execution counts.
+
+19. The implementation varies depending on whether the code is being compiled for a 64-bit (__x86_64__) or 32-bit system. The hashing algorithm is based on MurmurHash3, a non-cryptographic hash function known for its speed and quality of hash distribution.
+
+The code provides two different implementations of hash32, one for 64-bit systems and another for 32-bit systems, based on whether the macro __x86_64__ is defined.
+
+#define ROL64(_x, _r)  ((((u64)(_x)) << (_r)) | (((u64)(_x)) >> (64 - (_r))))
+ROL64: Performs a 64-bit left rotation of the value _x by _r bits. This is a common operation in hash functions to mix the bits.
+
+Several rounds of XOR and multiplication are applied to h1 to further mix the bits, ensuring a good distribution of hash values.
+
+The hash32 function provides a way to compress and summarize the execution trace data (trace_bits). This helps the fuzzer track unique program behaviors and determine if new inputs cause the program to explore different code paths or exhibit different performance characteristics.
+
+
+20. Run is finish; now   analyze(use_argv);
+
+21. The analyze() function performs an in-depth analysis of how the input file interacts with the target program, focusing on how the program's behavior changes in response to specific mutations applied to each byte of the input. It systematically modifies the input and evaluates the changes in the program’s execution trace (checksums) to classify the significance of each byte in the input.
+
+22. u32 boring_len = 0, prev_xff = 0, prev_x01 = 0, prev_s10 = 0, prev_a10 = 0;
+u8 *b_data = ck_alloc(in_len + 1);  // Allocate memory for tracking results
+u8 seq_byte = 0;
+b_data[in_len] = 0xff; // Intentional terminator.
+
+boring_len: Keeps track of how many bytes are considered “boring” or unimportant based on the analysis.
+prev_xff, prev_x01, etc.: Store previous checksum results for comparison.
+b_data: A buffer that stores the classification results for each byte (whether the byte is "interesting" or not).
+seq_byte: Used to mark significant changes during analysis.
+
+23.The program iterates through each byte (i) in the input file (in_data). For each byte, it performs a series of mutations (modifications) to see how they affect the program’s behavior.
+
+24. in_data[i] ^= 0xff;
+xor_ff = run_target(argv, in_data, in_len, 0);
+
+in_data[i] ^= 0xfe;
+xor_01 = run_target(argv, in_data, in_len, 0);
+
+in_data[i] = (in_data[i] ^ 0x01) - 0x10;
+sub_10 = run_target(argv, in_data, in_len, 0);
+
+in_data[i] += 0x20;
+add_10 = run_target(argv, in_data, in_len, 0);
+in_data[i] -= 0x10;
+
+The function applies four different mutations to each byte:
+^= 0xff: Flips all the bits in the byte.
+^= 0xfe: Flips all bits except the least significant bit.
+(byte ^ 0x01) - 0x10: Subtracts 0x10 from the byte after flipping its least significant bit.
++= 0x20: Adds 0x20 to the byte to see how increasing the value affects behavior.
+After each mutation, run_target() is called to execute the target program with the mutated input. The function then captures the execution trace (as a checksum) for each mutated input and compares it to the original trace.
+
+25. xff_orig = (xor_ff == orig_cksum);
+x01_orig = (xor_01 == orig_cksum);
+s10_orig = (sub_10 == orig_cksum);
+a10_orig = (add_10 == orig_cksum);
+
+The checksums (xor_ff, xor_01, etc.) are compared with the original checksum (orig_cksum), which was obtained by running the program with the unmodified input.
+Behavior Classification:
+
+RESP_NONE: If all four mutations produce the same checksum as the original, this byte has no significant effect on the program, so it is considered "boring."
+RESP_MINOR: If at least one mutation results in the same checksum, the byte has only a minor effect on the program's behavior.
+RESP_FIXED: If all four mutations result in the same checksum, but it's different from the original, the byte’s impact is fixed but distinct from the original.
+RESP_VARIABLE: If all four mutations produce different checksums, the byte causes variable behavior in the program, making it highly interesting for fuzzing.
+
+25. if (prev_xff != xor_ff && prev_x01 != xor_01 &&
+    prev_s10 != sub_10 && prev_a10 != add_10)
+  seq_byte ^= 0x80;
+b_data[i] |= seq_byte;
+
+If all the previous checksum results are different from the current results, the byte is considered highly significant, and seq_byte is updated.
+seq_byte: This bit-flip marks major changes in the behavior caused by specific bytes.
+
+26.trace_bits and cksum: Each time the program runs, the execution trace (trace_bits) is analyzed and converted to a checksum (cksum). This helps identify which parts of the input (bytes) cause changes in program behavior.
+
+27.  dump_hex(in_data, in_len, b_data); //what is it
+
+This function interprets and reports patterns found in the input file by analyzing the bytes of input data (in_data[]) that influence program behavior. It classifies portions of the input based on their impact on execution behavior, then outputs a hex dump showing how each byte or block of bytes (referred to as "runs") contributes to the behavior. The color-coded output and classification help identify critical parts of the input.
+
+28. static void dump_hex(u8 *buf, u32 len, u8 *b_data)
+buf: Input data buffer, in_data, which stores the input file being analyzed.
+len: Length of the input data buffer.
+b_data: A buffer that stores classification results for each byte of the input (from analyze()), indicating how important each byte is in influencing program behavior (e.g., none, minor, critical, etc.).
+
+29. while (i + rlen < len && (b_data[i] >> 7) == (b_data[i + rlen] >> 7)) {
+
+This part of the loop looks ahead to group consecutive bytes with the same classification type into a "run". A run is a sequence of bytes that share similar characteristics (e.g., their impact on program execution).
+The >> 7 checks if the most significant bit is the same for all consecutive bytes, meaning they are similarly classified.
+
+30. if (rtype == RESP_FIXED) {
+  switch (rlen) {
+    case 2:
+    case 4:
+      // Check for small integers (length fields) or checksums
+  }
+}
+If the run of bytes is classified as RESP_FIXED (fixed or unchanging value), the function tries to classify it further by analyzing the length of the run.
+It checks if the sequence could be a length field (a field that represents size, common in file formats or network protocols) or a checksum (a value used to verify data integrity).
+
+31. switch (rtype) {
+  case RESP_NONE:
+    SAYF(cLGR bgGRA);  // No impact
+    break;
+  case RESP_VARIABLE:
+    SAYF(cBLK bgCYA);  // Highly variable impact
+    break;
+  // Other cases like RESP_FIXED, RESP_LEN, RESP_CKSUM, RESP_SUSPECT
+}
+
+Based on the classification (rtype), the program assigns colors or descriptions to different sections of the input. This visual output helps users quickly identify important parts of the input that significantly affect program execution.
+RESP_NONE: Bytes that have no significant impact.
+RESP_VARIABLE: Bytes that cause significant changes in behavior.
+RESP_FIXED: Bytes that are part of a fixed value, such as a magic number or checksum.
+
+32. i += rlen - 1;
+The loop moves the index forward by the length of the run (rlen), which means that consecutive bytes with similar behavior are processed as a group, not individually.
+
+The hex dump produced by dump_hex() is a tool for understanding the structure of the input in relation to the program’s behavior. It helps to see which parts of the input are more sensitive and which ones can be safely ignored (e.g., RESP_NONE).
+
+
+33. Running AFL on Linux: https://www.youtube.com/watch?v=iL5svwS3edE
+
+34. Afl: https://www.youtube.com/watch?v=DFQT1YxvpDo
+
+35. Afl github: https://github.com/google/AFL
+
+36.
+
+
+
+
+
+
+
+
+
+
+
+
+
